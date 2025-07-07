@@ -1,224 +1,291 @@
-# Confluent Kafka 7.9 Mirror Maker 2 Disaster Recovery POC
+# Confluent Kafka 7.9 Mirror Maker 2 Production Setup
 
-Bu proje, Confluent Kafka 7.9 kullanarak iki cluster arası Mirror Maker 2 ile disaster recovery senaryosunu test etmek için oluşturulmuştur.
+Production-ready MirrorMaker 2 setup with distributed Kafka Connect, auto-deployment, and comprehensive testing scripts for disaster recovery scenarios.
 
-## 🏗️ Mimari
+## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│  Primary        │    │   Mirror Maker 2 │    │  DR Cluster     │
-│  Cluster        │───▶│                  │───▶│                 │
-│  (kafka-1:9092) │    │   Replication    │    │ (kafka-2:9093)  │
+│  Source         │    │   Mirror Maker 2 │    │  Target         │
+│  Cluster        │───▶│                  │───▶│  Cluster        │
+│  (kafka:9092)   │    │   Replication    │    │ (kafka:9093)    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-### Bileşenler
-- **Primary Cluster**: Zookeeper-1 + Kafka-1 (Port: 9092)
-- **DR Cluster**: Zookeeper-2 + Kafka-2 (Port: 9093)
-- **Mirror Maker 2**: Primary'den DR'ye sürekli replikasyon
-- **Kafka UI**: Web arayüzü (Port: 8080)
-- **Python Producer**: Primary cluster'a mesaj gönderir
-- **Python Consumers**: Her iki cluster'dan mesaj okur
+### Components
+- **Source Cluster**: Zookeeper-1 + Kafka-Source (Port: 9092)
+- **Target Cluster**: Zookeeper-2 + Kafka-Target (Port: 9093)
+- **Mirror Maker 2**: Continuous replication from Source to Target
+- **Distributed Connect**: Production-ready Kafka Connect cluster
+- **Python Producer**: Sends messages to source cluster
+- **Python Consumers**: Reads messages from both clusters
 
-## 🚀 Hızlı Başlangıç
+## 🚀 Quick Start
 
-### 1. Gereksinimler
+### 1. Prerequisites
 - Docker & Docker Compose
 - Python 3.7+
 - pip
 
-### 2. Python Paketlerini Yükle
+### 2. Install Python Packages
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 3. Tüm Sistemi Başlat
+### 3. Start the Entire System
 ```powershell
 docker-compose up -d
 ```
 
-### 4. Sistem Durumunu Kontrol Et
+### 4. Check System Status
 ```powershell
 docker-compose ps
 ```
 
-### 5. Test Topic'i Oluştur
+### 5. Verify System Health
 ```powershell
-# Primary cluster'da topic oluştur
-docker exec kafka-1 kafka-topics --bootstrap-server localhost:9092 --topic test-topic --create --partitions 3 --replication-factor 1
+# Check source cluster topics
+docker exec kafka-source kafka-topics --bootstrap-server localhost:9092 --list
+
+# Check target cluster topics  
+docker exec kafka-target kafka-topics --bootstrap-server localhost:9093 --list
 ```
 
-## 📊 Test Senaryoları
+## 📊 Test Scenarios
 
-### Senaryo 1: Normal Operasyon Testi
+### Scenario 1: Normal Operation Test
 
-1. **Producer'ı Başlat** (Yeni terminal):
+1. **Start Producer** (New terminal):
+
 ```powershell
-python producer_primary.py
+python producer_orders.py
 ```
 
-2. **Primary Consumer'ı Başlat** (Yeni terminal):
+2. **Start Source Consumer** (New terminal):
+
 ```powershell
-python consumer_primary.py
+python consumer_orders.py
 ```
 
-3. **DR Consumer'ı Başlat** (Yeni terminal):
+3. **Start DR Consumer** (New terminal):
+
 ```powershell
-python consumer_dr.py
+python consumer_dr_orders.py
 ```
 
-### Senaryo 2: Disaster Recovery Testi
+### Scenario 2: Disaster Recovery Test
 
-1. **Test Tool'unu Çalıştır**:
+1. **Run Management Tool**:
+
 ```powershell
-python test_scenarios.py
+python mm2_manager.py status
 ```
 
-2. Menüden "4. Disaster Recovery testi yap" seçin
+2. **Test End-to-End Replication**:
+   - Producer sends messages to source cluster
+   - MirrorMaker 2 replicates to target cluster
+   - DR consumer reads from mirrored topics
+   - Verify offset synchronization
 
-3. Test adımları:
-   - Primary cluster durdurulur
-   - DR cluster'dan mesaj okunur
-   - Primary cluster tekrar başlatılır
-   - Offset senkronizasyonu kontrol edilir
+### Scenario 3: Manual Disaster Recovery
 
-### Senaryo 3: Manuel Disaster Recovery
+1. **Stop Source Cluster**:
 
-1. **Primary Cluster'ı Durdur**:
 ```powershell
-docker stop kafka-1 zookeeper-1
+docker stop kafka-source zookeeper-1
 ```
 
-2. **DR Consumer ile Devam Et**:
+2. **Continue with DR Consumer**:
+
 ```powershell
-python consumer_dr.py
+python consumer_dr_orders.py
 ```
 
-3. **Primary'yi Tekrar Başlat**:
-```powershell
-docker start zookeeper-1 kafka-1
-```
+3. **Restart Source Cluster**:
 
+```powershell
+docker start zookeeper-1 kafka-source
+```
+```powershell
 ## 🖥️ Monitoring
 
-### Kafka UI
-- URL: http://localhost:8080
-- Primary Cluster: `primary-cluster`
-- DR Cluster: `dr-cluster`
+### REST API
+- **URL**: <http://localhost:8083>
+- **Connectors**: GET /connectors
+- **Status**: GET /connectors/{name}/status
 
-### Komut Satırı Kontrolleri
+### Command Line Tools
 
-**Topic'leri Listele**:
+**List Topics**:
+
 ```powershell
-# Primary
-docker exec kafka-1 kafka-topics --bootstrap-server localhost:9092 --list
+# Source cluster
+docker exec kafka-source kafka-topics --bootstrap-server localhost:9092 --list
 
-# DR
-docker exec kafka-2 kafka-topics --bootstrap-server localhost:9093 --list
+# Target cluster
+docker exec kafka-target kafka-topics --bootstrap-server localhost:9093 --list
 ```
 
-**Consumer Group'ları Kontrol Et**:
-```powershell
-# Primary
-docker exec kafka-1 kafka-consumer-groups --bootstrap-server localhost:9092 --list
+**Check Consumer Groups**:
 
-# DR  
-docker exec kafka-2 kafka-consumer-groups --bootstrap-server localhost:9093 --list
+```powershell
+# Source cluster
+docker exec kafka-source kafka-consumer-groups --bootstrap-server localhost:9092 --list
+
+# Target cluster
+docker exec kafka-target kafka-consumer-groups --bootstrap-server localhost:9093 --list
 ```
 
-**Mirror Maker 2 Log'larını İncele**:
+**Monitor Mirror Maker 2 Logs**:
+
 ```powershell
 docker logs mirror-maker-2 -f
 ```
 
-## 📁 Dosya Yapısı
+### Python Management Tool
 
+```powershell
+# Check all connector status
+python mm2_manager.py status
+
+# Deploy all connectors
+python mm2_manager.py deploy
+
+# Delete all connectors
+python mm2_manager.py delete-all
 ```
-mirror_maker_2_POC/
-├── docker-compose.yml           # Ana Docker Compose dosyası
-├── requirements.txt             # Python paketleri
-├── producer_primary.py          # Primary cluster producer
-├── consumer_primary.py          # Primary cluster consumer
-├── consumer_dr.py               # DR cluster consumer
-├── test_scenarios.py            # Test senaryoları
-├── README.md                    # Bu dosya
+
+## 📁 Project Structure
+
+```text
+mirror-maker-2-production/
+├── docker-compose.yml           # Main Docker Compose file
+├── requirements.txt             # Python dependencies
+├── producer_orders.py           # Source cluster producer
+├── consumer_orders.py           # Source cluster consumer  
+├── consumer_dr_orders.py        # Target cluster consumer
+├── mm2_manager.py               # Connector management tool
+├── README.md                    # This file
+├── connect/
+│   ├── connect-distributed.properties  # Kafka Connect config
+│   ├── connect-log4j.properties       # Logging configuration
+│   ├── mm2-source-connector.json      # Source connector config
+│   ├── mm2-heartbeat-connector.json   # Heartbeat connector config
+│   ├── mm2-checkpoint-connector.json  # Checkpoint connector config
+│   └── auto-deploy-connectors.sh      # Auto-deployment script
 └── mirror-maker-config/
-    └── mm2.properties           # Mirror Maker 2 konfigürasyonu
+    └── mm2.properties              # Legacy MM2 configuration
 ```
 
-## 🔧 Konfigürasyon Detayları
+## 🔧 Configuration Details
 
-### Mirror Maker 2 Ayarları
-- **Source**: Primary cluster (kafka-1:29092)
-- **Target**: DR cluster (kafka-2:29093)  
-- **Topics**: `test-topic`
-- **Consumer Groups**: `test-consumer-group`
+### Mirror Maker 2 Settings
+
+- **Source**: Source cluster (kafka-source:29092)
+- **Target**: Target cluster (kafka-target:29093)
+- **Topics**: `orders`
+- **Consumer Groups**: `order-processing-group`
 - **Replication Policy**: DefaultReplicationPolicy
 
-### Topic Adlandırma
-- Primary'de: `test-topic`
-- DR'de: `primary.test-topic` (Mirror Maker 2 prefix ekler)
+### Topic Naming Convention
+
+- Source cluster: `orders`
+- Target cluster: `source.orders` (MirrorMaker 2 adds prefix)
 
 ## 🚨 Troubleshooting
 
-### Yaygın Problemler
+### Common Issues
 
-1. **Container'lar ayağa kalkmıyor**:
+1. **Containers won't start**:
+
 ```powershell
 docker-compose down
 docker-compose up -d
 ```
 
-2. **Topic'ler görünmüyor**:
+2. **Topics not visible**:
+
 ```powershell
-# 30 saniye bekleyin, sonra tekrar kontrol edin
-docker exec kafka-1 kafka-topics --bootstrap-server localhost:9092 --list
+# Wait 30 seconds, then check again
+docker exec kafka-source kafka-topics --bootstrap-server localhost:9092 --list
 ```
 
-3. **Mirror Maker 2 çalışmıyor**:
+3. **Mirror Maker 2 not working**:
+
 ```powershell
 docker logs mirror-maker-2
 ```
 
-4. **Python import hatası**:
+4. **Python import errors**:
+
 ```powershell
-pip install kafka-python confluent-kafka
+pip install kafka-python confluent-kafka python-snappy
 ```
 
-### Port Kontrolleri
-- 9092: Primary Kafka
-- 9093: DR Kafka  
-- 2181: Primary Zookeeper
-- 2182: DR Zookeeper
-- 8080: Kafka UI
+### Port Reference
 
-## 📈 İleri Seviye Testler
+- **9092**: Source Kafka
+- **9093**: Target Kafka
+- **2181**: Source Zookeeper
+- **2182**: Target Zookeeper  
+- **8083**: Kafka Connect REST API
 
-### Offset Senkronizasyonu
+## 📈 Advanced Testing
+
+### Offset Synchronization
+
 ```powershell
-# Consumer offset'lerini kontrol et
-docker exec kafka-1 kafka-consumer-groups --bootstrap-server localhost:9092 --group test-consumer-group --describe
+# Check consumer offsets
+docker exec kafka-source kafka-consumer-groups --bootstrap-server localhost:9092 --group order-processing-group --describe
 
-docker exec kafka-2 kafka-consumer-groups --bootstrap-server localhost:9093 --group test-consumer-group --describe
+docker exec kafka-target kafka-consumer-groups --bootstrap-server localhost:9093 --group order-processing-group --describe
 ```
 
-### Performans Testi
+### Performance Testing
+
 ```powershell
-# Yüksek throughput producer testi
-docker exec kafka-1 kafka-producer-perf-test --topic test-topic --num-records 10000 --record-size 1024 --throughput 1000 --producer-props bootstrap.servers=localhost:9092
+# High throughput producer test
+docker exec kafka-source kafka-producer-perf-test --topic orders --num-records 10000 --record-size 1024 --throughput 1000 --producer-props bootstrap.servers=localhost:9092
 ```
 
-## 🧹 Temizlik
+### Connector Management
 
-Tüm container'ları ve volume'ları temizle:
+```powershell
+# Check connector status
+python mm2_manager.py status
+
+# Restart failed connectors
+python mm2_manager.py deploy
+```
+
+## 🧹 Cleanup
+
+Clean all containers and volumes:
+
 ```powershell
 docker-compose down -v
 docker system prune -f
 ```
 
-## 📚 Notlar
+## 📚 Notes
 
-- Bu POC sadece test amaçlıdır, production kullanımı için ek güvenlik ve performans optimizasyonları gereklidir
-- Mirror Maker 2, topic'lerin yanı sıra consumer group offset'lerini de senkronize eder
-- DR senaryosunda consumer'lar kesintisiz olarak DR cluster'dan okumaya devam edebilir
-- Kafka UI ile real-time olarak mesaj akışını izleyebilirsiniz
+- This is a production-ready setup with self-healing capabilities
+- MirrorMaker 2 synchronizes both topics and consumer group offsets
+- In DR scenarios, consumers can seamlessly continue reading from the target cluster
+- All internal topics use `cleanup.policy=compact` for optimal performance
+- Connectors auto-deploy on system startup for zero-config operation
+- REST API allows for dynamic connector management and monitoring
+
+## 🎯 Production Features
+
+- **Distributed Mode**: Scalable Kafka Connect cluster
+- **Auto-Deployment**: Connectors deploy automatically on startup
+- **Self-Healing**: Topics and configurations auto-created with correct settings
+- **Monitoring**: REST API and Python management tools
+- **Zero Downtime**: Hot-swappable connector configurations
+- **Offset Sync**: Consumer group offsets replicated for seamless failover
+
+## 📞 Support
+
+For issues and contributions, please use the GitHub repository:
+<https://github.com/bunyaminonum/mirror-maker-2-production>
