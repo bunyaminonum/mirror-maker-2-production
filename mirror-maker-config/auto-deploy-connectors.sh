@@ -1,8 +1,8 @@
 #!/bin/bash
 # Auto Deploy MM2 Connectors Script
-# Bu script MM2 Container'ın içinde çalışır ve connector'ları otomatik deploy eder
+# This script runs inside MM2 Container and automatically deploys connectors
 
-echo "🔄 Auto Connector Deployment başlatılıyor..."
+echo "🔄 Starting Auto Connector Deployment..."
 sleep 30  # Connect cluster'ın tamamen hazır olması için bekle
 
 # Connect cluster'ın hazır olup olmadığını kontrol et

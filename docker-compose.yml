@@ -14,11 +14,11 @@ services:
     networks:
       - kafka-network
 
-  # Kafka Broker for Cluster 1 (KAYNAK/Primary)
-  kafka-kaynak:
+  # Kafka Broker for Cluster 1 (Source/Primary)
+  kafka-source:
     image: confluentinc/cp-kafka:7.9.0
-    hostname: kafka-kaynak
-    container_name: kafka-kaynak
+    hostname: kafka-source
+    container_name: kafka-source
     depends_on:
       - zookeeper-1
     ports:
@@ -28,7 +28,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-1:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092 
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-kaynak:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-source:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -53,11 +53,11 @@ services:
     networks:
       - kafka-network
 
-  # Kafka Broker for Cluster 2 (HEDEF/DR)
-  kafka-hedef:
+  # Kafka Broker for Cluster 2 (Target/DR)
+  kafka-target:
     image: confluentinc/cp-kafka:7.9.0
-    hostname: kafka-hedef
-    container_name: kafka-hedef
+    hostname: kafka-target
+    container_name: kafka-target
     depends_on:
       - zookeeper-2
     ports:
@@ -67,7 +67,7 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-2:2181'
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-hedef:29093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-target:29093,PLAINTEXT_HOST://localhost:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -85,8 +85,8 @@ services:
     hostname: mirror-maker-2
     container_name: mirror-maker-2
     depends_on:
-      - kafka-kaynak
-      - kafka-hedef
+      - kafka-source
+      - kafka-target
     ports:
       - "8083:8083"
     environment:
@@ -96,22 +96,22 @@ services:
         echo 'Waiting for Kafka clusters to be ready...'
         sleep 90
         echo 'Checking cluster connectivity...'
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --list
-        kafka-topics --bootstrap-server kafka-hedef:29093 --list
+        kafka-topics --bootstrap-server kafka-source:29092 --list
+        kafka-topics --bootstrap-server kafka-target:29093 --list
         echo 'Creating source topic if not exists...'
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic siparisler --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka-source:29092 --create --if-not-exists --topic orders --partitions 3 --replication-factor 1
         echo 'Creating Connect internal topics with correct cleanup policy...'
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic mm2-connect-offsets --partitions 25 --replication-factor 1 --config cleanup.policy=compact
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic mm2-connect-configs --partitions 1 --replication-factor 1 --config cleanup.policy=compact
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic mm2-connect-status --partitions 5 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --bootstrap-server kafka-source:29092 --create --if-not-exists --topic mm2-connect-offsets --partitions 25 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --bootstrap-server kafka-source:29092 --create --if-not-exists --topic mm2-connect-configs --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --bootstrap-server kafka-source:29092 --create --if-not-exists --topic mm2-connect-status --partitions 5 --replication-factor 1 --config cleanup.policy=compact
         echo 'Ensuring existing topics have correct cleanup policy...'
-        kafka-configs --bootstrap-server kafka-kaynak:29092 --entity-type topics --entity-name mm2-connect-offsets --alter --add-config cleanup.policy=compact || true
-        kafka-configs --bootstrap-server kafka-kaynak:29092 --entity-type topics --entity-name mm2-connect-configs --alter --add-config cleanup.policy=compact || true
-        kafka-configs --bootstrap-server kafka-kaynak:29092 --entity-type topics --entity-name mm2-connect-status --alter --add-config cleanup.policy=compact || true
+        kafka-configs --bootstrap-server kafka-source:29092 --entity-type topics --entity-name mm2-connect-offsets --alter --add-config cleanup.policy=compact || true
+        kafka-configs --bootstrap-server kafka-source:29092 --entity-type topics --entity-name mm2-connect-configs --alter --add-config cleanup.policy=compact || true
+        kafka-configs --bootstrap-server kafka-source:29092 --entity-type topics --entity-name mm2-connect-status --alter --add-config cleanup.policy=compact || true
         echo 'Verifying topic configurations...'
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --describe --topic mm2-connect-offsets | grep 'cleanup.policy=compact' && echo '✅ offsets topic OK' || echo '❌ offsets topic needs fix'
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --describe --topic mm2-connect-configs | grep 'cleanup.policy=compact' && echo '✅ configs topic OK' || echo '❌ configs topic needs fix'
-        kafka-topics --bootstrap-server kafka-kaynak:29092 --describe --topic mm2-connect-status | grep 'cleanup.policy=compact' && echo '✅ status topic OK' || echo '❌ status topic needs fix'
+        kafka-topics --bootstrap-server kafka-source:29092 --describe --topic mm2-connect-offsets | grep 'cleanup.policy=compact' && echo '✅ offsets topic OK' || echo '❌ offsets topic needs fix'
+        kafka-topics --bootstrap-server kafka-source:29092 --describe --topic mm2-connect-configs | grep 'cleanup.policy=compact' && echo '✅ configs topic OK' || echo '❌ configs topic needs fix'
+        kafka-topics --bootstrap-server kafka-source:29092 --describe --topic mm2-connect-status | grep 'cleanup.policy=compact' && echo '✅ status topic OK' || echo '❌ status topic needs fix'
         echo 'Starting auto-connector deployment in background...'
         chmod +x /etc/kafka/connect/auto-deploy-connectors.sh
         /etc/kafka/connect/auto-deploy-connectors.sh > /tmp/auto-deploy.log 2>&1 &

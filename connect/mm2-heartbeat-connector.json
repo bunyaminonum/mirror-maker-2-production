@@ -2,10 +2,10 @@
   "name": "MirrorHeartbeatConnector", 
   "config": {
     "connector.class": "org.apache.kafka.connect.mirror.MirrorHeartbeatConnector",
-    "source.cluster.alias": "kaynak",
-    "target.cluster.alias": "hedef",
-    "source.cluster.bootstrap.servers": "kafka-kaynak:29092",
-    "target.cluster.bootstrap.servers": "kafka-hedef:29093",
+    "source.cluster.alias": "source",
+    "target.cluster.alias": "target",
+    "source.cluster.bootstrap.servers": "kafka-source:29092",
+    "target.cluster.bootstrap.servers": "kafka-target:29093",
     
     "tasks.max": "1",
     
@@ -15,7 +15,7 @@
     "emit.heartbeats.interval.seconds": "5",
     "heartbeats.topic.retention.ms": "86400000",
     
-    "producer.override.bootstrap.servers": "kafka-hedef:29093",
+    "producer.override.bootstrap.servers": "kafka-target:29093",
     "producer.override.acks": "all",
     "producer.override.compression.type": "snappy",
     

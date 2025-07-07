@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 DR Consumer - Disaster Recovery Test
-Mirror edilen topic'ten mesajları okur
+Reads messages from mirrored topic
 """
 
 import json
@@ -13,43 +13,43 @@ from kafka import KafkaConsumer
 
 class DRConsumer:
     def __init__(self):
-        # DR Cluster bağlantı bilgileri
+        # DR Cluster connection info
         self.bootstrap_servers = 'localhost:9093'  # DR cluster port
-        self.topic = 'kaynak.siparisler'  # Mirror edilen topic
-        self.consumer_group = 'siparis-dr-grubu'  # DR consumer group
+        self.topic = 'source.orders'  # Mirrored topic
+        self.consumer_group = 'order-dr-group'  # DR consumer group
         
         self.consumer = None
         self.running = True
         
-        # Graceful shutdown için signal handler
+        # Signal handler for graceful shutdown
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
     
     def signal_handler(self, signum, frame):
         """Signal handler for graceful shutdown"""
-        print(f"\n🔴 Signal {signum} alındı. Consumer kapatılıyor...")
+        print(f"\n🔴 Signal {signum} received. Closing consumer...")
         self.running = False
     
     def create_consumer(self):
-        """Kafka consumer oluştur"""
+        """Create Kafka consumer"""
         try:
             self.consumer = KafkaConsumer(
                 self.topic,
                 bootstrap_servers=self.bootstrap_servers,
                 group_id=self.consumer_group,
-                auto_offset_reset='earliest',  # En baştan oku
+                auto_offset_reset='earliest',  # Read from beginning
                 enable_auto_commit=True,
                 auto_commit_interval_ms=1000,
                 value_deserializer=lambda v: json.loads(v.decode('utf-8')) if v else None,
-                consumer_timeout_ms=10000  # 10 saniye timeout
+                consumer_timeout_ms=10000  # 10 second timeout
             )
             return True
         except Exception as e:
-            print(f"❌ Consumer oluşturulamadı: {e}")
+            print(f"❌ Consumer could not be created: {e}")
             return False
     
     def start_consuming(self):
-        """Mesaj tüketmeye başla"""
+        """Start consuming messages"""
         print("🔄 DR CLUSTER TEST")
         print("=" * 50)
         print(f"🎯 DR Cluster: localhost:9093")
@@ -60,8 +60,8 @@ class DRConsumer:
         if not self.create_consumer():
             return
         
-        print("🚀 DR Consumer başlatıldı. Mirror edilen mesajlar okunuyor...")
-        print("💡 CTRL+C ile durdurun")
+        print("🚀 DR Consumer started. Reading mirrored messages...")
+        print("💡 Stop with CTRL+C")
         print("-" * 50)
         
         message_count = 0
@@ -73,30 +73,30 @@ class DRConsumer:
                 
                 message_count += 1
                 
-                # Mesaj bilgilerini göster
-                siparis = message.value
+                # Show message info
+                order = message.value
                 partition = message.partition
                 offset = message.offset
                 timestamp = datetime.fromtimestamp(message.timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
                 
-                print(f"📦 DR Mesaj #{message_count}: Sipariş #{siparis['siparis_id']} - "
-                      f"{siparis['urun']} x{siparis['miktar']} = {siparis['fiyat']}₺ "
+                print(f"📦 DR Message #{message_count}: Order #{order['order_id']} - "
+                      f"{order['product']} x{order['quantity']} = ${order['price']} "
                       f"(P:{partition}, O:{offset}, T:{timestamp})")
                 
-                # Her 10 mesajda bir özet
+                # Summary every 10 messages
                 if message_count % 10 == 0:
-                    print(f"📊 Toplam {message_count} DR mesaj işlendi...")
+                    print(f"📊 Total {message_count} DR messages processed...")
                     
         except Exception as e:
-            print(f"❌ Consumer hatası: {e}")
+            print(f"❌ Consumer error: {e}")
         finally:
             if self.consumer:
-                print("\n🔄 DR Consumer kapatılıyor...")
+                print("\n🔄 Closing DR Consumer...")
                 self.consumer.close()
-                print(f"✅ Toplam {message_count} DR mesaj işlendi.")
+                print(f"✅ Total {message_count} DR messages processed.")
 
 def main():
-    """Ana fonksiyon"""
+    """Main function"""
     dr_consumer = DRConsumer()
     dr_consumer.start_consuming()
 

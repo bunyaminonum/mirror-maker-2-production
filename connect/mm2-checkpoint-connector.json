@@ -2,10 +2,10 @@
   "name": "MirrorCheckpointConnector",
   "config": {
     "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
-    "source.cluster.alias": "kaynak",
-    "target.cluster.alias": "hedef", 
-    "source.cluster.bootstrap.servers": "kafka-kaynak:29092",
-    "target.cluster.bootstrap.servers": "kafka-hedef:29093",
+    "source.cluster.alias": "source",
+    "target.cluster.alias": "target", 
+    "source.cluster.bootstrap.servers": "kafka-source:29092",
+    "target.cluster.bootstrap.servers": "kafka-target:29093",
     
     "tasks.max": "1",
     
@@ -15,17 +15,17 @@
     "consumer.poll.timeout.ms": "30000",
     "sync.group.offsets.enabled": "true",
     "sync.group.offsets.interval.seconds": "60",
-    "groups": "siparis-isleme-grubu",
+    "groups": "order-processing-group",
     "groups.blacklist": "__.*,connect-.*,_confluent.*",
     
     "emit.checkpoints.enabled": "true",
     "emit.checkpoints.interval.seconds": "60",
     
-    "producer.override.bootstrap.servers": "kafka-hedef:29093",
+    "producer.override.bootstrap.servers": "kafka-target:29093",
     "producer.override.acks": "all",
     "producer.override.compression.type": "snappy",
     
-    "consumer.override.bootstrap.servers": "kafka-kaynak:29092",
+    "consumer.override.bootstrap.servers": "kafka-source:29092",
     "consumer.override.auto.offset.reset": "earliest",
     "consumer.override.session.timeout.ms": "30000",
     

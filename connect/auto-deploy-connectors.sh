@@ -1,25 +1,25 @@
 #!/bin/bash
 # Auto Deploy MM2 Connectors Script
-# Bu script MM2 Container'ın içinde çalışır ve connector'ları otomatik deploy eder
+# This script runs inside MM2 Container and automatically deploys connectors
 
-echo "🔄 Auto Connector Deployment başlatılıyor..."
-sleep 30  # Connect cluster'ın tamamen hazır olması için bekle
+echo "🔄 Starting Auto Connector Deployment..."
+sleep 30  # Wait for Connect cluster to be fully ready
 
-# Connect cluster'ın hazır olup olmadığını kontrol et
+# Check if Connect cluster is ready
 for i in {1..20}; do
     if curl -s http://localhost:8083/ > /dev/null; then
-        echo "✅ Connect cluster hazır!"
+        echo "✅ Connect cluster ready!"
         break
     fi
-    echo "⏳ Connect cluster bekleniyor... ($i/20)"
+    echo "⏳ Waiting for Connect cluster... ($i/20)"
     sleep 10
 done
 
-# Connector'ları deploy et
-echo "🚀 Connector'lar deploy ediliyor..."
+# Deploy connectors
+echo "🚀 Deploying connectors..."
 
 # Source Connector
-echo "📤 Source Connector deploy ediliyor..."
+echo "📤 Deploying Source Connector..."
 curl -X POST http://localhost:8083/connectors \
      -H "Content-Type: application/json" \
      -d @/etc/kafka/connect/mm2-source-connector.json
@@ -27,7 +27,7 @@ curl -X POST http://localhost:8083/connectors \
 echo ""
 
 # Heartbeat Connector  
-echo "💓 Heartbeat Connector deploy ediliyor..."
+echo "💓 Deploying Heartbeat Connector..."
 curl -X POST http://localhost:8083/connectors \
      -H "Content-Type: application/json" \
      -d @/etc/kafka/connect/mm2-heartbeat-connector.json
@@ -35,15 +35,15 @@ curl -X POST http://localhost:8083/connectors \
 echo ""
 
 # Checkpoint Connector
-echo "📋 Checkpoint Connector deploy ediliyor..."
+echo "📋 Deploying Checkpoint Connector..."
 curl -X POST http://localhost:8083/connectors \
      -H "Content-Type: application/json" \
      -d @/etc/kafka/connect/mm2-checkpoint-connector.json
 
 echo ""
-echo "✅ Auto deployment tamamlandı!"
+echo "✅ Auto deployment completed!"
 
-# Status kontrolü
+# Status check
 sleep 5
-echo "📊 Connector durumları:"
+echo "📊 Connector statuses:"
 curl -s http://localhost:8083/connectors
