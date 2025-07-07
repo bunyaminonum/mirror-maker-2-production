@@ -1,0 +1,129 @@
+version: '3.8'
+
+services:
+  # Zookeeper for Cluster 1 (Primary)
+  zookeeper-1:
+    image: confluentinc/cp-zookeeper:7.9.0
+    hostname: zookeeper-1
+    container_name: zookeeper-1
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-network
+
+  # Kafka Broker for Cluster 1 (KAYNAK/Primary)
+  kafka-kaynak:
+    image: confluentinc/cp-kafka:7.9.0
+    hostname: kafka-kaynak
+    container_name: kafka-kaynak
+    depends_on:
+      - zookeeper-1
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-1:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092 
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-kaynak:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      # Tek node için ek ayarlar
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - kafka-network
+
+  # Zookeeper for Cluster 2 (DR)
+  zookeeper-2:
+    image: confluentinc/cp-zookeeper:7.9.0
+    hostname: zookeeper-2
+    container_name: zookeeper-2
+    ports:
+      - "2182:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-network
+
+  # Kafka Broker for Cluster 2 (HEDEF/DR)
+  kafka-hedef:
+    image: confluentinc/cp-kafka:7.9.0
+    hostname: kafka-hedef
+    container_name: kafka-hedef
+    depends_on:
+      - zookeeper-2
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper-2:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29093,PLAINTEXT_HOST://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-hedef:29093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      # Tek node için ek ayarlar
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - kafka-network
+
+  # Mirror Maker 2 Connect Cluster (Production-Ready)
+  mirror-maker-2:
+    image: confluentinc/cp-kafka:7.9.0
+    hostname: mirror-maker-2
+    container_name: mirror-maker-2
+    depends_on:
+      - kafka-kaynak
+      - kafka-hedef
+    ports:
+      - "8083:8083"
+    environment:
+      KAFKA_LOG4J_OPTS: "-Dlog4j.configuration=file:/etc/kafka/connect-log4j.properties"
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka clusters to be ready...'
+        sleep 90
+        echo 'Checking cluster connectivity...'
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --list
+        kafka-topics --bootstrap-server kafka-hedef:29093 --list
+        echo 'Creating source topic if not exists...'
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic siparisler --partitions 3 --replication-factor 1
+        echo 'Creating Connect internal topics with correct cleanup policy...'
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic mm2-connect-offsets --partitions 25 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic mm2-connect-configs --partitions 1 --replication-factor 1 --config cleanup.policy=compact
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --create --if-not-exists --topic mm2-connect-status --partitions 5 --replication-factor 1 --config cleanup.policy=compact
+        echo 'Ensuring existing topics have correct cleanup policy...'
+        kafka-configs --bootstrap-server kafka-kaynak:29092 --entity-type topics --entity-name mm2-connect-offsets --alter --add-config cleanup.policy=compact || true
+        kafka-configs --bootstrap-server kafka-kaynak:29092 --entity-type topics --entity-name mm2-connect-configs --alter --add-config cleanup.policy=compact || true
+        kafka-configs --bootstrap-server kafka-kaynak:29092 --entity-type topics --entity-name mm2-connect-status --alter --add-config cleanup.policy=compact || true
+        echo 'Verifying topic configurations...'
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --describe --topic mm2-connect-offsets | grep 'cleanup.policy=compact' && echo '✅ offsets topic OK' || echo '❌ offsets topic needs fix'
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --describe --topic mm2-connect-configs | grep 'cleanup.policy=compact' && echo '✅ configs topic OK' || echo '❌ configs topic needs fix'
+        kafka-topics --bootstrap-server kafka-kaynak:29092 --describe --topic mm2-connect-status | grep 'cleanup.policy=compact' && echo '✅ status topic OK' || echo '❌ status topic needs fix'
+        echo 'Starting auto-connector deployment in background...'
+        chmod +x /etc/kafka/connect/auto-deploy-connectors.sh
+        /etc/kafka/connect/auto-deploy-connectors.sh > /tmp/auto-deploy.log 2>&1 &
+        echo 'Starting Kafka Connect in distributed mode...'
+        connect-distributed /etc/kafka/connect-distributed.properties"
+    volumes:
+      - ./mirror-maker-config:/etc/kafka
+      - ./connect:/etc/kafka/connect
+    networks:
+      - kafka-network
+    restart: on-failure
+
+networks:
+  kafka-network:
+    driver: bridge

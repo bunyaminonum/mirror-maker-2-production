@@ -1,0 +1,35 @@
+{
+  "name": "MirrorCheckpointConnector",
+  "config": {
+    "connector.class": "org.apache.kafka.connect.mirror.MirrorCheckpointConnector",
+    "source.cluster.alias": "kaynak",
+    "target.cluster.alias": "hedef", 
+    "source.cluster.bootstrap.servers": "kafka-kaynak:29092",
+    "target.cluster.bootstrap.servers": "kafka-hedef:29093",
+    
+    "tasks.max": "1",
+    
+    "checkpoints.topic.replication.factor": "1", 
+    "checkpoints.topic.retention.ms": "604800000",
+    
+    "consumer.poll.timeout.ms": "30000",
+    "sync.group.offsets.enabled": "true",
+    "sync.group.offsets.interval.seconds": "60",
+    "groups": "siparis-isleme-grubu",
+    "groups.blacklist": "__.*,connect-.*,_confluent.*",
+    
+    "emit.checkpoints.enabled": "true",
+    "emit.checkpoints.interval.seconds": "60",
+    
+    "producer.override.bootstrap.servers": "kafka-hedef:29093",
+    "producer.override.acks": "all",
+    "producer.override.compression.type": "snappy",
+    
+    "consumer.override.bootstrap.servers": "kafka-kaynak:29092",
+    "consumer.override.auto.offset.reset": "earliest",
+    "consumer.override.session.timeout.ms": "30000",
+    
+    "key.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter"
+  }
+}

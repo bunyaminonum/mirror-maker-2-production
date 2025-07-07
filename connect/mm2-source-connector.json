@@ -1,0 +1,38 @@
+{
+  "name": "MirrorSourceConnector",
+  "config": {
+    "connector.class": "org.apache.kafka.connect.mirror.MirrorSourceConnector",
+    "source.cluster.alias": "kaynak",
+    "target.cluster.alias": "hedef", 
+    "source.cluster.bootstrap.servers": "kafka-kaynak:29092",
+    "target.cluster.bootstrap.servers": "kafka-hedef:29093",
+    
+    "topics": "siparisler",
+    "topics.blacklist": "__.*,.*-internal,connect-.*,_confluent.*,mm2-.*",
+    
+    "tasks.max": "1",
+    "refresh.topics.enabled": "true",
+    "refresh.topics.interval.seconds": "300",
+    
+    "sync.topic.configs.enabled": "true",
+    "sync.topic.acls.enabled": "false",
+    
+    "replication.factor": "1",
+    "offset-syncs.topic.replication.factor": "1",
+    "offset-syncs.topic.retention.ms": "604800000",
+    
+    "producer.override.bootstrap.servers": "kafka-hedef:29093",
+    "producer.override.acks": "all",
+    "producer.override.compression.type": "snappy",
+    "producer.override.batch.size": "65536",
+    "producer.override.linger.ms": "5",
+    
+    "consumer.override.bootstrap.servers": "kafka-kaynak:29092",
+    "consumer.override.auto.offset.reset": "earliest",
+    "consumer.override.max.poll.records": "500",
+    
+    "key.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "header.converter": "org.apache.kafka.connect.converters.ByteArrayConverter"
+  }
+}
